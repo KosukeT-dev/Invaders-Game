@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harder Invaders Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+        #gameCanvas {
+            border: 1px solid #fff;
+        }
+        #mobileControls {
+            position: absolute;
+            bottom: 20px;
+            display: none;
+        }
+        #mobileControls button {
+            font-size: 24px;
+            padding: 15px 30px;
+            margin: 0 10px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            border-radius: 5px;
+        }
+        #score, #level {
+            position: absolute;
+            color: white;
+            font-size: 20px;
+        }
+        #score { top: 10px; left: 10px; }
+        #level { top: 10px; right: 10px; }
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="mobileControls">
+        <button id="leftBtn">←</button>
+        <button id="rightBtn">→</button>
+        <button id="fireBtn">Fire</button>
+    </div>
+    <div id="score">Score: 0</div>
+    <div id="level">Level: 1</div>
+    <div id="message"></div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const mobileControls = document.getElementById('mobileControls');
+        const scoreElement = document.getElementById('score');
+        const levelElement = document.getElementById('level');
+        const messageElement = document.getElementById('message');
+
+        // Game state
+        let player, invaders, bullets, gameLoop, score = 0, level = 1;
+        const invadersRows = 4;
+        const invadersColumns = 8;
+        let bulletSpeed = 7;
+        let invaderSpeed = 0.5;
+        let invaderDropSpeed = 0.2;
+        let lastTime = 0;
+        let deltaTime = 0;
+        let lastShotTime = 0;
+        const shootCooldown = 500; // 0.5 seconds cooldown between shots
+
+        // Set canvas size
+        function setCanvasSize() {
+            canvas.width = Math.min(800, window.innerWidth - 20);
+            canvas.height = Math.min(600, window.innerHeight - 20);
+        }
+
+        // Create player
+        function createPlayer() {
+            const width = canvas.width * 0.05;
+            const height = canvas.height * 0.05;
+            return {
+                x: canvas.width / 2 - width / 2,
+                y: canvas.height - height - 10,
+                width: width,
+                height: height,
+                speed: canvas.width * 0.005
+            };
+        }
+
+        // Create invaders
+        function createInvaders() {
+            const invaders = [];
+            const invaderWidth = canvas.width * 0.04;
+            const invaderHeight = canvas.height * 0.04;
+            const padding = invaderWidth * 0.5;
+
+            for (let row = 0; row < invadersRows; row++) {
+                for (let col = 0; col < invadersColumns; col++) {
+                    invaders.push({
+                        x: col * (invaderWidth + padding) + padding,
+                        y: row * (invaderHeight + padding) + padding + canvas.height * 0.1,
+                        width: invaderWidth,
+                        height: invaderHeight
+                    });
+                }
+            }
+            return invaders;
+        }
+
+        // Initialize game
+        function init() {
+            setCanvasSize();
+            player = createPlayer();
+            invaders = createInvaders();
+            bullets = [];
+            score = 0;
+            level = 1;
+            invaderSpeed = 0.5;
+            invaderDropSpeed = 0.2;
+            updateScore();
+            updateLevel();
+            hideMessage();
+        }
+
+        // Update score
+        function updateScore() {
+            scoreElement.textContent = `Score: ${score}`;
+        }
+
+        // Update level
+        function updateLevel() {
+            levelElement.textContent = `Level: ${level}`;
+        }
+
+        // Show message
+        function showMessage(text) {
+            messageElement.textContent = text;
+            messageElement.style.display = 'block';
+        }
+
+        // Hide message
+        function hideMessage() {
+            messageElement.style.display = 'none';
+        }
+
+        // Draw game
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw player
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Draw invaders
+            ctx.fillStyle = '#f00';
+            invaders.forEach(invader => {
+                ctx.fillRect(invader.x, invader.y, invader.width, invader.height);
+            });
+
+            // Draw bullets
+            ctx.fillStyle = '#fff';
+            bullets.forEach(bullet => {
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+            });
+        }
+
+        // Update game
+        function update(time = 0) {
+            deltaTime = time - lastTime;
+            lastTime = time;
+
+            // Move invaders
+            let changeDirection = false;
+            invaders.forEach(invader => {
+                invader.x += invaderSpeed * deltaTime * 0.05;
+                if (invader.x + invader.width > canvas.width || invader.x < 0) {
+                    changeDirection = true;
+                }
+            });
+
+            if (changeDirection) {
+                invaders.forEach(invader => {
+                    invader.x -= invaderSpeed * deltaTime * 0.1;
+                    invader.y += invaderDropSpeed * deltaTime;
+                });
+            }
+
+            // Move bullets
+            bullets = bullets.filter(bullet => {
+                bullet.y -= bulletSpeed * deltaTime * 0.05;
+                return bullet.y > 0;
+            });
+
+            // Collision detection
+            bullets.forEach(bullet => {
+                invaders = invaders.filter(invader => {
+                    if (bullet.x < invader.x + invader.width &&
+                        bullet.x + bullet.width > invader.x &&
+                        bullet.y < invader.y + invader.height &&
+                        bullet.y + bullet.height > invader.y) {
+                        score += 10;
+                        updateScore();
+                        return false;
+                    }
+                    return true;
+                });
+            });
+
+            // Game over check
+            if (invaders.some(invader => invader.y + invader.height > player.y)) {
+                showMessage(`Game Over!\nYour score: ${score}\nLevel reached: ${level}\nClick to play again.`);
+                cancelAnimationFrame(gameLoop);
+            }
+
+            // Victory check
+            if (invaders.length === 0) {
+                level++;
+                updateLevel();
+                invaders = createInvaders();
+                invaderSpeed *= 1.2;
+                invaderDropSpeed *= 1.2;
+                showMessage(`Level ${level} completed!\nClick to continue.`);
+                cancelAnimationFrame(gameLoop);
+            }
+        }
+
+        // Main game loop
+        function gameLoopFunction(time) {
+            update(time);
+            draw();
+            gameLoop = requestAnimationFrame(gameLoopFunction);
+        }
+
+        // Fire bullet
+        function fireBullet() {
+            const currentTime = Date.now();
+            if (currentTime - lastShotTime >= shootCooldown) {
+                bullets.push({
+                    x: player.x + player.width / 2 - 2,
+                    y: player.y,
+                    width: 4,
+                    height: 10
+                });
+                lastShotTime = currentTime;
+            }
+        }
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' && player.x > 0) {
+                player.x = Math.max(0, player.x - player.speed);
+            } else if (e.key === 'ArrowRight' && player.x < canvas.width - player.width) {
+                player.x = Math.min(canvas.width - player.width, player.x + player.speed);
+            } else if (e.key === ' ') {
+                fireBullet();
+            }
+        });
+
+        // Mobile controls
+        function setupMobileControls() {
+            if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                mobileControls.style.display = 'flex';
+
+                let moveInterval;
+                const movePlayer = (direction) => {
+                    if (direction === 'left' && player.x > 0) {
+                        player.x = Math.max(0, player.x - player.speed);
+                    } else if (direction === 'right' && player.x < canvas.width - player.width) {
+                        player.x = Math.min(canvas.width - player.width, player.x + player.speed);
+                    }
+                };
+
+                document.getElementById('leftBtn').addEventListener('touchstart', () => {
+                    moveInterval = setInterval(() => movePlayer('left'), 16);
+                });
+                document.getElementById('leftBtn').addEventListener('touchend', () => {
+                    clearInterval(moveInterval);
+                });
+
+                document.getElementById('rightBtn').addEventListener('touchstart', () => {
+                    moveInterval = setInterval(() => movePlayer('right'), 16);
+                });
+                document.getElementById('rightBtn').addEventListener('touchend', () => {
+                    clearInterval(moveInterval);
+                });
+
+                document.getElementById('fireBtn').addEventListener('touchstart', fireBullet);
+            }
+        }
+
+        // Start game
+        function startGame() {
+            init();
+            gameLoop = requestAnimationFrame(gameLoopFunction);
+        }
+
+        // Event listener for restarting the game
+        canvas.addEventListener('click', () => {
+            if (messageElement.style.display === 'block') {
+                startGame();
+            }
+        });
+
+        // Initialize game
+        window.onload = () => {
+            setupMobileControls();
+            startGame();
+        };
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            setCanvasSize();
+            player = createPlayer();
+            invaders = createInvaders();
+        });
+    </script>
+</body>
+</html>
