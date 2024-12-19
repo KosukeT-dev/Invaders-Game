@@ -242,7 +242,7 @@
 
             // Game over check
             if (invaders.some(invader => invader.y + invader.height > player.y)) {
-                showMessage(`Game Over!\nYour score: ${score}\nLevel reached: ${level}\nClick to play again.`);
+                showMessage(`Game Over!\nYour score: ${score}\nLevel reached: ${level}`);
                 cancelAnimationFrame(gameLoop);
             }
 
