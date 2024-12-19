@@ -14,6 +14,7 @@
             height: 100vh;
             background-color: #000;
             font-family: Arial, sans-serif;
+            touch-action: none;
         }
         #gameCanvas {
             border: 1px solid #fff;
@@ -22,6 +23,7 @@
             position: absolute;
             bottom: 20px;
             display: none;
+            z-index: 1000;
         }
         #mobileControls button {
             font-size: 24px;
@@ -31,6 +33,9 @@
             border: none;
             color: white;
             border-radius: 5px;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
         }
         #score, #level {
             position: absolute;
@@ -82,7 +87,11 @@
         let lastTime = 0;
         let deltaTime = 0;
         let lastShotTime = 0;
-        const shootCooldown = 500; // 0.5 seconds cooldown between shots
+        const shootCooldown = 500;
+
+        // Mobile control state
+        let isMovingLeft = false;
+        let isMovingRight = false;
 
         // Set canvas size
         function setCanvasSize() {
@@ -186,6 +195,14 @@
             deltaTime = time - lastTime;
             lastTime = time;
 
+            // Handle mobile movement
+            if (isMovingLeft && player.x > 0) {
+                player.x = Math.max(0, player.x - player.speed * deltaTime * 0.1);
+            }
+            if (isMovingRight && player.x < canvas.width - player.width) {
+                player.x = Math.min(canvas.width - player.width, player.x + player.speed * deltaTime * 0.1);
+            }
+
             // Move invaders
             let changeDirection = false;
             invaders.forEach(invader => {
@@ -278,30 +295,37 @@
             if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
                 mobileControls.style.display = 'flex';
 
-                let moveInterval;
-                const movePlayer = (direction) => {
-                    if (direction === 'left' && player.x > 0) {
-                        player.x = Math.max(0, player.x - player.speed);
-                    } else if (direction === 'right' && player.x < canvas.width - player.width) {
-                        player.x = Math.min(canvas.width - player.width, player.x + player.speed);
-                    }
-                };
+                const leftBtn = document.getElementById('leftBtn');
+                const rightBtn = document.getElementById('rightBtn');
+                const fireBtn = document.getElementById('fireBtn');
 
-                document.getElementById('leftBtn').addEventListener('touchstart', () => {
-                    moveInterval = setInterval(() => movePlayer('left'), 16);
-                });
-                document.getElementById('leftBtn').addEventListener('touchend', () => {
-                    clearInterval(moveInterval);
+                // Left button
+                leftBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    isMovingLeft = true;
                 });
 
-                document.getElementById('rightBtn').addEventListener('touchstart', () => {
-                    moveInterval = setInterval(() => movePlayer('right'), 16);
-                });
-                document.getElementById('rightBtn').addEventListener('touchend', () => {
-                    clearInterval(moveInterval);
+                leftBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    isMovingLeft = false;
                 });
 
-                document.getElementById('fireBtn').addEventListener('touchstart', fireBullet);
+                // Right button
+                rightBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    isMovingRight = true;
+                });
+
+                rightBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    isMovingRight = false;
+                });
+
+                // Fire button
+                fireBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    fireBullet();
+                });
             }
         }
 
