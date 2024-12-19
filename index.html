@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- Previous head and style sections remain the same -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -79,6 +80,7 @@
 
         // Game state
         let player, invaders, bullets, gameLoop, score = 0, level = 1;
+        let isGameOver = false;  // 新しい状態変数を追加
         const invadersRows = 4;
         const invadersColumns = 8;
         let bulletSpeed = 7;
@@ -92,6 +94,8 @@
         // Mobile control state
         let isMovingLeft = false;
         let isMovingRight = false;
+
+        // Previous game functions remain the same until the game over check
 
         // Set canvas size
         function setCanvasSize() {
@@ -142,8 +146,19 @@
             level = 1;
             invaderSpeed = 0.5;
             invaderDropSpeed = 0.2;
+            isGameOver = false;  // 初期化時にisGameOverをリセット
             updateScore();
             updateLevel();
+            hideMessage();
+        }
+
+        // Next level
+        function nextLevel() {
+            player = createPlayer();
+            invaders = createInvaders();
+            bullets = [];
+            invaderSpeed *= 1.2;
+            invaderDropSpeed *= 1.2;
             hideMessage();
         }
 
@@ -242,6 +257,7 @@
 
             // Game over check
             if (invaders.some(invader => invader.y + invader.height > player.y)) {
+                isGameOver = true;  // ゲームオーバー状態を設定
                 showMessage(`Game Over!\nYour score: ${score}\nLevel reached: ${level}\nClick to play again.`);
                 cancelAnimationFrame(gameLoop);
             }
@@ -250,9 +266,6 @@
             if (invaders.length === 0) {
                 level++;
                 updateLevel();
-                invaders = createInvaders();
-                invaderSpeed *= 1.2;
-                invaderDropSpeed *= 1.2;
                 showMessage(`Level ${level} completed!\nClick to continue.`);
                 cancelAnimationFrame(gameLoop);
             }
@@ -335,10 +348,15 @@
             gameLoop = requestAnimationFrame(gameLoopFunction);
         }
 
-        // Event listener for restarting the game
+        // Event listener for restarting/continuing the game
         canvas.addEventListener('click', () => {
             if (messageElement.style.display === 'block') {
-                startGame();
+                if (isGameOver) {
+                    startGame();  // ゲームオーバー時は新規ゲーム開始
+                } else {
+                    nextLevel();  // レベルクリア時は次のレベルへ
+                    gameLoop = requestAnimationFrame(gameLoopFunction);
+                }
             }
         });
 
