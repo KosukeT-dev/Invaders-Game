@@ -56,9 +56,56 @@
             text-align: center;
             display: none;
         }
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        #startScreen h1 {
+            font-size: 36px;
+            color: #0f0;
+            margin-bottom: 20px;
+        }
+        #startScreen p {
+            font-size: 18px;
+            margin: 10px 0;
+            max-width: 600px;
+            text-align: center;
+        }
+        .button {
+            background-color: #0f0;
+            color: black;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .button:hover {
+            background-color: #0c0;
+        }
     </style>
 </head>
 <body>
+    <div id="startScreen">
+        <h1>INVADERS GAME</h1>
+        <p>Defend Earth from the alien invasion!</p>
+        <p>Controls:</p>
+        <p id="pcControls">Use LEFT and RIGHT arrow keys to move, SPACEBAR to fire.</p>
+        <p id="mobileInstructions" style="display: none;">Use on-screen buttons to move LEFT, RIGHT, and FIRE.</p>
+        <button id="startButton" class="button">START GAME</button>
+    </div>
+
     <canvas id="gameCanvas"></canvas>
     <div id="mobileControls">
         <button id="leftBtn">←</button>
@@ -76,9 +123,14 @@
         const scoreElement = document.getElementById('score');
         const levelElement = document.getElementById('level');
         const messageElement = document.getElementById('message');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+        const pcControls = document.getElementById('pcControls');
+        const mobileInstructions = document.getElementById('mobileInstructions');
 
         // Game state
         let player, invaders, bullets, gameLoop, score = 0, level = 1;
+        let gameActive = false;
         const invadersRows = 4;
         const invadersColumns = 8;
         let bulletSpeed = 7;
@@ -88,6 +140,8 @@
         let deltaTime = 0;
         let lastShotTime = 0;
         const shootCooldown = 500;
+        let levelMessageTimeout;
+        let backgroundMusic;
 
         // Mobile control state
         let isMovingLeft = false;
@@ -145,6 +199,13 @@
             updateScore();
             updateLevel();
             hideMessage();
+            
+            // Start background music
+            if (!backgroundMusic) {
+                backgroundMusic = new Audio('audios/play.mp3');
+                backgroundMusic.loop = true;
+            }
+            backgroundMusic.play();
         }
 
         // Update score
@@ -158,14 +219,37 @@
         }
 
         // Show message
-        function showMessage(text) {
-            messageElement.textContent = text;
+        function showMessage(text, hasReplayButton = false) {
+            messageElement.innerHTML = '';
+            
+            if (hasReplayButton) {
+                // For game over message with replay button
+                const gameOverText = document.createElement('div');
+                gameOverText.innerHTML = 'Game Over!<br>Your score: ' + score + '<br>Level reached: ' + level;
+                messageElement.appendChild(gameOverText);
+                
+                // Add replay button directly after the level reached text
+                const replayButton = document.createElement('button');
+                replayButton.textContent = 'Play Again';
+                replayButton.className = 'button';
+                replayButton.style.marginTop = '20px';
+                replayButton.onclick = function() {
+                    hideMessage();
+                    startGame();
+                };
+                messageElement.appendChild(replayButton);
+            } else {
+                // For other messages (like level up)
+                messageElement.textContent = text;
+            }
+            
             messageElement.style.display = 'block';
         }
 
         // Hide message
         function hideMessage() {
             messageElement.style.display = 'none';
+            messageElement.innerHTML = '';
         }
 
         // Draw game
@@ -242,7 +326,11 @@
 
             // Game over check
             if (invaders.some(invader => invader.y + invader.height > player.y)) {
-                showMessage(`Game Over!\nYour score: ${score}\nLevel reached: ${level}`);
+                gameActive = false;
+                if (backgroundMusic) {
+                    backgroundMusic.pause();
+                }
+                showMessage('Game Over', true);
                 cancelAnimationFrame(gameLoop);
             }
 
@@ -253,13 +341,31 @@
                 invaders = createInvaders();
                 invaderSpeed *= 1.2;
                 invaderDropSpeed *= 1.2;
+                
+                // Reset player position to center
+                player = createPlayer();
+                
                 showMessage(`Level ${level}`);
+                
+                // Clear previous timeout if exists
+                if (levelMessageTimeout) {
+                    clearTimeout(levelMessageTimeout);
+                }
+                
+                // Hide level message after 3 seconds
+                levelMessageTimeout = setTimeout(() => {
+                    hideMessage();
+                    gameLoop = requestAnimationFrame(gameLoopFunction);
+                }, 3000);
+                
                 cancelAnimationFrame(gameLoop);
             }
         }
 
         // Main game loop
         function gameLoopFunction(time) {
+            if (!gameActive) return;
+            
             update(time);
             draw();
             gameLoop = requestAnimationFrame(gameLoopFunction);
@@ -281,6 +387,8 @@
 
         // Keyboard controls
         document.addEventListener('keydown', (e) => {
+            if (!gameActive) return;
+            
             if (e.key === 'ArrowLeft' && player.x > 0) {
                 player.x = Math.max(0, player.x - player.speed);
             } else if (e.key === 'ArrowRight' && player.x < canvas.width - player.width) {
@@ -294,6 +402,8 @@
         function setupMobileControls() {
             if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
                 mobileControls.style.display = 'flex';
+                pcControls.style.display = 'none';
+                mobileInstructions.style.display = 'block';
 
                 const leftBtn = document.getElementById('leftBtn');
                 const rightBtn = document.getElementById('rightBtn');
@@ -332,21 +442,15 @@
         // Start game
         function startGame() {
             init();
+            gameActive = true;
             gameLoop = requestAnimationFrame(gameLoopFunction);
         }
 
-        // Event listener for restarting the game
-        canvas.addEventListener('click', () => {
-            if (messageElement.style.display === 'block') {
-                startGame();
-            }
-        });
-
-        // Initialize game
-        window.onload = () => {
-            setupMobileControls();
+        // Start button event listener
+        startButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
             startGame();
-        };
+        });
 
         // Window resize handler
         window.addEventListener('resize', () => {
@@ -354,6 +458,12 @@
             player = createPlayer();
             invaders = createInvaders();
         });
+
+        // Initialize on load
+        window.onload = () => {
+            setCanvasSize();
+            setupMobileControls();
+        };
     </script>
 </body>
 </html>
